@@ -23,45 +23,48 @@ const eps_f = 1.75e7u"1/(m*M)"
 # transmittance parameter
 const fcr2 = ρ*fcr/Mw_FL
 
-
-# these determine the behavior of every model
-@with_kw struct TrialParameters
-	h₀::Unitful.Length
-	ts::Unitful.Time
+@with_kw mutable struct MeasuredValues
+	h₀::typeof(1.0u"μm") = 4.0u"μm"
+	ts::typeof(1.0u"s") = 20.0u"s"
 	f̂₀::Float64
-	T₀::Unitful.Temperature
-	v₀::Unitful.Velocity
+	T₀::typeof(1.0u"°C")
+end
+
+# these are needed to determine the behavior of a model
+@with_kw mutable struct TrialParameters
+	v₀::typeof(1.0u"μm/s") = 0.1u"μm/s"
+	Bi::Float64 = 9e-4
+	ĝ::Function = t -> NaN
 end
 
 # these are what appear in the equations
-@with_kw struct ModelConstants
+@with_kw struct DerivedParameters
 	Pc::Float64
 	Pr::Float64
 	f₀::Float64
 	ϕ::Float64
 	ℒ::Float64
-	Bi::Float64
 	T̃inf::Float64
 	K̃::Float64
 	k̃::Float64
 	d̃::Float64
 	ỹ_c::Float64
 	T̃₀::Float64
+	Bi::Float64
+	strain::Function
 end
 
-function ModelConstants(p::TrialParameters)
-	@unpack h₀, ts, f̂₀, T₀, v₀ = p
-	# trial-specific?
+function DerivedParameters(p::MeasuredValues, trial::TrialParameters)
+	@unpack h₀, ts, f̂₀, T₀ = p
+	@unpack v₀, Bi, ĝ = trial
 	k = 0.68u"W/(m*K)"
 	h₀ = uconvert(u"m", h₀)
-	hconv = 0.9e-3k / h₀    # convective heat transfer coefficient (9e-4)
 
 	# dimensional parameters computed for trials
 	ℓ = uconvert(u"μm", (ts * σ₀ * h₀^3 / μ) ^ 0.25)
 	U = ℓ/ts
 	ϵ = h₀/ℓ    # aspect ratio
 	V = ϵ*U
-	f0p2 = f̂₀ * ρ / Mw_FL
 	capK = (Tb - Ts) / (ρ * v₀)     # gets initial v0 from temperatures
 
 	## dimensionless parameters
@@ -84,19 +87,17 @@ function ModelConstants(p::TrialParameters)
 	K̃ = uconvert(Unitful.NoUnits, capK * (ρ * h₀ / ts) / (Tb - Ts))
     T̃inf = uconvert(Unitful.NoUnits, (Tinf - Ts) / ( Tb - Ts ))
 
-	# flow-related
-	# b₁ = b₁p * ts
-	# b₂ = b₂p * ts
-	Bi = hconv * h₀ / k       # Biot number
-
 	# nondimensionalize experimental temperatures
 	T̃₀ = (T₀ - Ts) / (Tb - Ts)
 
-	return ModelConstants(Pc, Pr, f₀, ϕ, ℒ, Bi, T̃inf, K̃, k̃, d̃, ỹ_c, T̃₀)
+	# nondimensionalize strain function
+	strain = t -> ustrip(ĝ(t) * ts)
+
+	return DerivedParameters(Pc, Pr, f₀, ϕ, ℒ, T̃inf, K̃, k̃, d̃, ỹ_c, T̃₀, Bi, strain)
 end
 
-# function show(io::IO, c::ModelConstants)
-# 	println(io,"ModelConstants for")
+# function show(io::IO, c::DerivedParameters)
+# 	println(io,"DerivedParameters for")
 # 	println(io,"    h₀ = $(c.h₀), ts = $(c.ts), f̂₀ = $(c.f̂₀)")
 # 	# println(io,"    Pc = $(c.Pc), f₀ = $(c.f₀), ϕ = $(c.ϕ)")
 # end

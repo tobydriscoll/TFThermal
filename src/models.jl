@@ -6,7 +6,7 @@
 
 # Create a function that computes FL intensity as a function of h and c.
 # Depends on initial FL and Naperian constant
-function intensity(C::ModelConstants)
+function intensity(C::DerivedParameters)
 	ϕ = C.ϕ
 	II(h, fl) = (1 - exp(-ϕ * h * fl)) / (1 + fl^2)
 	I₀ = II(1, C.f₀)
@@ -23,12 +23,12 @@ const CHEBN = 64
 
 # Create an IVP for a given model instance.
 function makeivp(M::AbstractModel)
-	@unpack Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, ỹ_c, f₀ = M.constants
+	@unpack Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, ỹ_c, f₀, strain = M.derived
 	y = Chebyshev.points(CHEBN, [ỹ_c, 0])
 	Dy = Chebyshev.diffmat(CHEBN, [ỹ_c, 0])
 	function ode!(du, u, p, t)
 		@unpack h, c, fl, Tc = u
-		@unpack Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, ỹ_c, strain = p
+		@unpack Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, ỹ_c, strain, y, Dy = p
 		T₀ = Tc[end]  # temp at corneal surface
 		Th = ( T₀ + Bi * h * T̃inf ) / ( 1 + ( Bi + ℒ / K̃ ) * h )  # TF surface temp
 		Je = ( T₀ + T̃inf * Bi * h) / ( K̃ * (1 + Bi * h) + ℒ * h ) # evap rate
@@ -44,16 +44,16 @@ function makeivp(M::AbstractModel)
 		du.Tc[end] = Tcʹ[end] + (k̃ / d̃) * ( ℒ * Je + Bi * (Th - T̃inf) )
 		return du
 	end
-	ode_param = (strain=strain(M), Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, ỹ_c, Dy, y)
+	ode_param = (; strain, Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, ỹ_c, Dy, y)
 	Mass = Diagonal([1; 1; 1; 0; ones(CHEBN - 2); 0])
-	T_00 = T̃₀ * (1 + Bi + ℒ / K̃) - Bi * T̃inf  # corneal surface temp in theory
-	T_init = @. T_00 + (1 - T_00) * (y / ỹ_c)
+	T₀₀ = T̃₀ * (1 + Bi + ℒ / K̃) - Bi * T̃inf  # corneal surface temp in theory
+	T_init = @. T₀₀ + (1 - T₀₀) * (y / ỹ_c)
 	u0 = ComponentArray(h = 1., c = 1., fl = f₀, Tc = T_init)
 	return ODEProblem(ODEFunction(ode!, mass_matrix=Mass), u0, (0., 1.), ode_param)
 end
 
 # Convenience access functions for all models
-# constants(M::AbstractModel) = M.constants
+# constants(M::AbstractModel) = M.derived
 # parameters(M::AbstractModel) = uconvert.(units(M), M.parameters)
 # nondimensionalize(M::AbstractModel) = nondimensionalize(M, parameters(M))
 # isknown(M::AbstractModel) = !isnothing(M.solution)
@@ -78,7 +78,7 @@ solve(M::AbstractModel, p::AbstractVector{<:Real}) = solve(M, dimensionalize(M, 
 solution(M::AbstractModel; kw...) = [solution(M, comp; kw...) for comp in (:h, :c, :fl, :Tc)]
 function solution(M::AbstractModel, component::Symbol; dim=false)
 	if component == :Tc
-		yc = M.constants.ỹ_c
+		yc = M.derived.ỹ_c
 		return function(t, y)
 			Tc = M.ode_solution(t, idxs=:Tc)
 			T = Chebyshev.interp(Tc, 2*(yc - y) / yc - 1)
@@ -88,7 +88,7 @@ function solution(M::AbstractModel, component::Symbol; dim=false)
 			return uconvert(u"°C", T)
 		end
 	elseif component == :Th
-		@unpack Bi, ℒ, K̃, T̃inf = M.constants
+		@unpack Bi, ℒ, K̃, T̃inf = M.derived
 		return function(t)
 			h = M.ode_solution(t, idxs=:h)
 			T₀ = M.ode_solution(t, idxs=:Tc)[end]
@@ -101,9 +101,9 @@ function solution(M::AbstractModel, component::Symbol; dim=false)
 	else
 		if dim
 			if component == :h
-				factor = M.trial.h₀
+				factor = M.measured.h₀
 			elseif component == :fl
-				factor = M.trial.f̂₀
+				factor = M.measured.f̂₀
 			elseif component == :c
 				factor = c₀
 			end
@@ -118,14 +118,14 @@ solution(M::AbstractModel, t::Real, component::Symbol; kw...) = solution(M, comp
 function intensity(M::AbstractModel)
 	h = solution(M, :h)
 	fl = solution(M, :fl)
-	I = intensity(M.constants)
+	I = intensity(M.derived)
 	return t -> I(h(t), fl(t))
 end
 
 # solution(M::AbstractModel,t::Real;idxs=nothing) = M.solution(t;idxs)
 # solution(M::AbstractModel) = (t;kwargs...) -> solution(M,t;kwargs...)
 #
-# intensity(M::AbstractModel,t) = intensity(M.constants)(solution(M,t)...)
+# intensity(M::AbstractModel,t) = intensity(M.derived)(solution(M,t)...)
 
 # Compact display
 # function show(io::IO,M::AbstractModel)
@@ -146,52 +146,70 @@ end
 
 ## Model M
 # Strain can relax from a nonzero value to zero
-mutable struct TFModel3 <: AbstractModel
-	trial::TrialParameters
-	constants::ModelConstants
-	parameters::Union{Missing, AbstractVector{<:Quantity}}
-	strain::Function
+mutable struct ExpModelParameters
+	v₀::typeof(1.0u"μm/s")
+	b₁::typeof(1.0u"1/s")
+	b₂::typeof(1.0u"1/s")
+	Bi::Float64
+end
+
+function nondimensionalize(p̂::ExpModelParameters, measured::MeasuredValues)
+	δ = measured.h₀
+	τ = measured.ts
+	return uconvert.(Unitful.NoUnits, [p̂.v₀ * τ / δ, p̂.b₁ * τ, p̂.b₂ * τ, p̂.Bi])
+end
+
+# create strain function from parameters
+function TrialParameters(p̂::ExpModelParameters, meas::MeasuredValues)
+	# time is always nondimensional
+	ĝ(t) = p̂.b₁ * exp(-p̂.b₂ * t * meas.ts)
+	return TrialParameters(v₀=p̂.v₀, Bi=p̂.Bi, ĝ=ĝ)
+end
+
+mutable struct TFModelExp <: AbstractModel
+	measured::MeasuredValues
+	derived::DerivedParameters
+	parameters::Union{Missing, ExpModelParameters}
 	ode_solution::Union{Missing, ODESolution}
 end
 
-names(::TFModel3) = ["b₁","b₂"]
-units(::TFModel3) = [u"1/s", u"1/s"]
-parameters(M::TFModel3) = uconvert.(units(M), M.parameters)
-strain(M::TFModel3) = M.strain
+names(::TFModelExp) = ["v₀", "b₁", "b₂", "Bi"]
+units(::TFModelExp) = [u"μm/s", u"1/s", u"1/s", NoUnits]
+parameters(M::TFModelExp) = uconvert.(units(M), M.parameters)
 
 # Constructors
-TFModel3(tri::TrialParameters) = TFModel3(tri, ModelConstants(tri), missing, t -> NaN, missing)
-function TFModel3(M::TFModel3, p̂::AbstractVector{<:Quantity})
-	TFModel3(p̂, M.trial)
+TFModelExp(tri::MeasuredValues) = TFModelExp(tri, DerivedParameters(tri), missing, missing)
+
+function TFModelExp(p̂::ExpModelParameters, meas::MeasuredValues)
+	con = DerivedParameters(meas, TrialParameters(p̂, meas))
+	return TFModelExp(meas, con, p̂, missing)
 end
-function TFModel3(M::TFModel3, sol::ODESolution)
+
+function TFModelExp(M::TFModelExp, p̂::ExpModelParameters)
+	TFModelExp(p̂, M.measured)
+end
+
+function TFModelExp(M::TFModelExp, sol::ODESolution)
 	M.ode_solution = sol
 	return M
 end
-function TFModel3(p̂::AbstractVector{<:Quantity}, tri::TrialParameters)
-	con = ModelConstants(tri)
-	p = nondimensionalize(TFModel3, tri, p̂)
-	strain(t) = p[1] * exp(-p[2] * t)
-	return TFModel3(tri, con, p̂, strain, missing)
-end
 
 # Convert to dimensional parameters
-function dimensionalize(::Type{TFModel3}, c::TrialParameters, p::AbstractVector{<:Real})
+function dimensionalize(::Type{TFModelExp}, c::MeasuredValues, p::AbstractVector{<:Real})
 	return p / c.ts
 end
 
-dimensionalize(M::TFModel3, p::AbstractVector{<:Real}) = dimensionalize(TFModel3, M.trial, p)
+dimensionalize(M::TFModelExp, p::AbstractVector{<:Real}) = dimensionalize(TFModelExp, M.measured, p)
 
 # Convert to nondimensional parameters
-function nondimensionalize(::Type{TFModel3}, c::TrialParameters, p̂::AbstractVector{<:Quantity})
+function nondimensionalize(::Type{TFModelExp}, c::MeasuredValues, p̂::AbstractVector{<:Quantity})
 	return uconvert.(Unitful.NoUnits, p̂ * c.ts)
 end
 
-nondimensionalize(M::TFModel3, p̂::AbstractVector{<:Quantity}) = nondimensionalize(TFModel3, M.trial, p̂)
 
 
 # function nondimensionalize(M::ModelM,p̂::AbstractVector{<:Real})
-# 	c = M.constants
+# 	c = M.derived
 # 	a = ustrip(uconvert(unit(1/units(M)[1]),c.ts/c.h₀))
 # 	b = ustrip(uconvert(unit(1/units(M)[2]),c.ts))
 # 	return [ p̂[1]*a, p̂[2]*b, p̂[3]*b, p̂[4]*b ]
