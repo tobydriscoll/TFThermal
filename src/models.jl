@@ -84,8 +84,10 @@ function solution(M::AbstractModel, component::Symbol; dim=false)
 			T = Chebyshev.interp(Tc, 2*(yc - y) / yc - 1)
 			if dim
 				T = Ts + (Tb - Ts) * T
+				return uconvert(u"°C", T)
+			else
+				return T
 			end
-			return uconvert(u"°C", T)
 		end
 	elseif component == :Th
 		@unpack Bi, ℒ, K̃, T̃inf = M.derived
@@ -120,6 +122,21 @@ function intensity(M::AbstractModel)
 	fl = solution(M, :fl)
 	I = intensity(M.derived)
 	return t -> I(h(t), fl(t))
+end
+
+function evap_rate(M::AbstractModel; dim=false)
+	h = solution(M, :h, dim=false)
+	Tc = solution(M, :Tc, dim=false)
+	@unpack Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀ = M.derived
+	@unpack h₀, ts = M.measured
+	if dim
+		return function(t)
+			Je = ( Tc(t, 0) + T̃inf * Bi * h(t)) / ( K̃ * (1 + Bi * h(t)) + ℒ * h(t) )
+			return uconvert(u"μm/s", Je * h₀ / ts)
+		end
+	else
+		return t -> ( Tc(t, 0) + T̃inf * Bi * h(t)) / ( K̃ * (1 + Bi * h(t)) + ℒ * h(t) )
+	end
 end
 
 # solution(M::AbstractModel,t::Real;idxs=nothing) = M.solution(t;idxs)

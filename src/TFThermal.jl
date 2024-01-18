@@ -13,7 +13,7 @@ using DifferentialEquations
 import Base: show, names
 # import Polynomials: fit
 import DifferentialEquations: solve
-export MeasuredValues, TrialParameters, DerivedParameters, ExpModelParameters, TFModelExp, solution, dimensionalize, nondimensionalize, solve, intensity
+export MeasuredValues, TrialParameters, DerivedParameters, ExpModelParameters, TFModelExp, solution, evap_rate, dimensionalize, nondimensionalize, solve, intensity
 
 export Chebyshev
 include("chebyshev.jl")
