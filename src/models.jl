@@ -150,7 +150,7 @@ end
 # 		print("$(typeof(M)) with unknown parameters")
 # 	else
 # 		print(io,"$(typeof(M)) with parameters")
-# 		for (n,p,u) in zip(names(M),M.parameters,units(M))
+# 		for (n,p,u) in zip(fieldnames(M),M.parameters,units(M))
 # 			print(io," $n = $(round(u,p,digits=4)),")
 # 		end
 # 		print(io,"\b")
@@ -164,11 +164,15 @@ end
 ## Model M
 # Strain can relax from a nonzero value to zero
 mutable struct ExpModelParameters
-	v₀::typeof(1.0u"μm/s")
+	v₀::typeof(1.0u"μm/minute")
 	b₁::typeof(1.0u"1/s")
 	b₂::typeof(1.0u"1/s")
 	Bi::Float64
 end
+
+# names(::Type{ExpModelParameters}) = ["v₀", "b₁", "b₂", "Bi"]
+units(::Type{ExpModelParameters}) = [u"μm/minute", u"1/s", u"1/s", NoUnits]
+units(p::ExpModelParameters) = units(typeof(p))
 
 function nondimensionalize(p̂::ExpModelParameters, measured::MeasuredValues)
 	δ = measured.h₀
@@ -190,8 +194,6 @@ mutable struct TFModelExp <: AbstractModel
 	ode_solution::Union{Missing, ODESolution}
 end
 
-names(::TFModelExp) = ["v₀", "b₁", "b₂", "Bi"]
-units(::TFModelExp) = [u"μm/s", u"1/s", u"1/s", NoUnits]
 parameters(M::TFModelExp) = uconvert.(units(M), M.parameters)
 
 # Constructors
@@ -223,11 +225,33 @@ function nondimensionalize(::Type{TFModelExp}, c::MeasuredValues, p̂::AbstractV
 	return uconvert.(Unitful.NoUnits, p̂ * c.ts)
 end
 
-
-
 # function nondimensionalize(M::ModelM,p̂::AbstractVector{<:Real})
 # 	c = M.derived
 # 	a = ustrip(uconvert(unit(1/units(M)[1]),c.ts/c.h₀))
 # 	b = ustrip(uconvert(unit(1/units(M)[2]),c.ts))
 # 	return [ p̂[1]*a, p̂[2]*b, p̂[3]*b, p̂[4]*b ]
 # end
+
+function show(io::IO, p::ExpModelParameters)
+	print(io, "Model parameters:    ")
+	for s in propertynames(p)
+		v = getproperty(p, s)
+		if v isa Quantity
+			print(io, s, " = ", round(typeof(v), v, sigdigits=5), ", ")
+		else
+			print(io, s, " = ", round(v, sigdigits=5), ", ")
+		end
+	end
+	print(io, "\b\b")
+end
+
+function show(io::IO, M::TFModelExp)
+	println(io, "TFModelExp with:")
+	print(io, "    ", M.measured)
+	if !ismissing(M.parameters)
+		print(io, "\n    ", M.parameters)
+	end
+	if !ismissing(M.ode_solution)
+		print(io, "\n    and a solution")
+	end
+end

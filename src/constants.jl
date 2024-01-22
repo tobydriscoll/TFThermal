@@ -30,6 +30,11 @@ const fcr2 = ρ*fcr/Mw_FL
 	T₀::typeof(1.0u"°C")
 end
 
+function show(io::IO, m::MeasuredValues)
+	print(io,"Measured trial values:")
+	print(io,"    h₀ = $(m.h₀), ts = $(m.ts), f̂₀ = $(100m.f̂₀) %, T₀ = $(m.T₀)")
+end
+
 # these are needed to determine the behavior of a model
 @with_kw mutable struct TrialParameters
 	v₀::typeof(1.0u"μm/s") = 0.1u"μm/s"

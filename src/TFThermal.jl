@@ -10,10 +10,10 @@ using DifferentialEquations
 # using StatsBase
 # using Distributions: Uniform,Normal,Exponential,InverseGamma,truncated
 
-import Base: show, names
+import Base: show
 # import Polynomials: fit
 import DifferentialEquations: solve
-export MeasuredValues, TrialParameters, DerivedParameters, ExpModelParameters, TFModelExp, solution, evap_rate, dimensionalize, nondimensionalize, solve, intensity
+export MeasuredValues, TrialParameters, DerivedParameters, ExpModelParameters, units, TFModelExp, solution, evap_rate, dimensionalize, nondimensionalize, solve, intensity
 
 export Chebyshev
 include("chebyshev.jl")
