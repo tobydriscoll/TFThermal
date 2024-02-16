@@ -18,17 +18,19 @@ end
 #######################################################################
 
 abstract type AbstractModel end
+measured(M::AbstractModel) = @error "No implementation for $(typeof(M))"
+derived(M::AbstractModel) = @error "No implementation for $(typeof(M))"
+parameters(M::AbstractModel) = @error "No implementation for $(typeof(M))"
 
 const CHEBN = 64
 
 # Create an IVP for a given model instance.
 function makeivp(M::AbstractModel)
-	@unpack Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, ỹ_c, f₀, strain = M.derived
+	@unpack Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, f₀, strain = M.derived
 	y = Chebyshev.points(CHEBN, [ỹ_c, 0])
 	Dy = Chebyshev.diffmat(CHEBN, [ỹ_c, 0])
 	function ode!(du, u, p, t)
 		@unpack h, c, fl, Tc = u
-		@unpack Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, ỹ_c, strain, y, Dy = p
 		T₀ = Tc[end]  # temp at corneal surface
 		Th = ( T₀ + Bi * h * T̃inf ) / ( 1 + ( Bi + ℒ / K̃ ) * h )  # TF surface temp
 		Je = ( T₀ + T̃inf * Bi * h) / ( K̃ * (1 + Bi * h) + ℒ * h ) # evap rate
@@ -44,20 +46,12 @@ function makeivp(M::AbstractModel)
 		du.Tc[end] = Tcʹ[end] + (k̃ / d̃) * ( ℒ * Je + Bi * (Th - T̃inf) )
 		return du
 	end
-	ode_param = (; strain, Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, ỹ_c, Dy, y)
 	Mass = Diagonal([1; 1; 1; 0; ones(CHEBN - 2); 0])
 	T₀₀ = T̃₀ * (1 + Bi + ℒ / K̃) - Bi * T̃inf  # corneal surface temp in theory
 	T_init = @. T₀₀ + (1 - T₀₀) * (y / ỹ_c)
 	u0 = ComponentArray(h = 1., c = 1., fl = f₀, Tc = T_init)
-	return ODEProblem(ODEFunction(ode!, mass_matrix=Mass), u0, (0., 1.), ode_param)
+	return ODEProblem(ODEFunction(ode!, mass_matrix=Mass), u0, (0., 1.))
 end
-
-# Convenience access functions for all models
-# constants(M::AbstractModel) = M.derived
-# parameters(M::AbstractModel) = uconvert.(units(M), M.parameters)
-# nondimensionalize(M::AbstractModel) = nondimensionalize(M, parameters(M))
-# isknown(M::AbstractModel) = !isnothing(M.solution)
-# strain(M::AbstractModel) = strain(M, nondimensionalize(M, M.parameters))
 
 # Solve a particular model type at given dimensional parameters
 import DifferentialEquations.solve
@@ -78,10 +72,9 @@ solve(M::AbstractModel, p::AbstractVector{<:Real}) = solve(M, dimensionalize(M, 
 solution(M::AbstractModel; kw...) = [solution(M, comp; kw...) for comp in (:h, :c, :fl, :Tc)]
 function solution(M::AbstractModel, component::Symbol; dim=false)
 	if component == :Tc
-		yc = M.derived.ỹ_c
 		return function(t, y)
 			Tc = M.ode_solution(t, idxs=:Tc)
-			T = Chebyshev.interp(Tc, 2*(yc - y) / yc - 1)
+			T = Chebyshev.interp(Tc, 2*(ỹ_c - y) / ỹ_c - 1)
 			if dim
 				T = Ts + (Tb - Ts) * T
 				return uconvert(u"°C", T)
@@ -157,27 +150,45 @@ end
 # 	end
 # end
 
+abstract type AbstractModelParameters end
+# Interface:
+units(::Type{<:AbstractModelParameters}) = @error "No units defined for this model type"
+bounds(::Type{<:AbstractModelParameters}) = @error "No bounds defined for this model type"
+TrialParameters(::AbstractModelParameters, ::MeasuredValues) = @error "No parameters defined for this model type"
+nondimensional(::AbstractModelParameters, ::MeasuredValues) = @error "No nondimensionalization defined for this model type"
+dimensional(::Type{<:AbstractModelParameters}, ::AbstractVector, ::MeasuredValues) = @error "No dimensionalization defined for this model type"
+
 #######################################################################
 # Specific model types
 #######################################################################
 
-## Model M
-# Strain can relax from a nonzero value to zero
-mutable struct ExpModelParameters
+# 1. Exponential decay of strain rate to zero
+
+# Parameters for the exponential decay model
+mutable struct ExpModelParameters <: AbstractModelParameters
 	v₀::typeof(1.0u"μm/minute")
 	b₁::typeof(1.0u"1/s")
 	b₂::typeof(1.0u"1/s")
 	Bi::Float64
 end
 
-# names(::Type{ExpModelParameters}) = ["v₀", "b₁", "b₂", "Bi"]
 units(::Type{ExpModelParameters}) = [u"μm/minute", u"1/s", u"1/s", NoUnits]
 units(p::ExpModelParameters) = units(typeof(p))
+bounds(::Type{ExpModelParameters}) = (
+	(0.05u"μm/minute", -2u"1/s", 0u"1/s", 2e-4),
+	(  20u"μm/minute",  4u"1/s", 2u"1/s", 2e-3)
+)
 
-function nondimensionalize(p̂::ExpModelParameters, measured::MeasuredValues)
+function nondimensional(p̂::ExpModelParameters, measured::MeasuredValues)
 	δ = measured.h₀
 	τ = measured.ts
 	return uconvert.(Unitful.NoUnits, [p̂.v₀ * τ / δ, p̂.b₁ * τ, p̂.b₂ * τ, p̂.Bi])
+end
+
+function dimensional(::Type{ExpModelParameters}, p::AbstractVector{<:Real}, measured::MeasuredValues)
+	δ = measured.h₀
+	τ = measured.ts
+	return p .* [δ / τ, 1 / τ, 1 / τ, 1]
 end
 
 # create strain function from parameters
@@ -187,6 +198,22 @@ function TrialParameters(p̂::ExpModelParameters, meas::MeasuredValues)
 	return TrialParameters(v₀=p̂.v₀, Bi=p̂.Bi, ĝ=ĝ)
 end
 
+function show(io::IO, p::ExpModelParameters)
+	print(io, "Model parameters:    ")
+	for s in propertynames(p)
+		v = getproperty(p, s)
+		if v isa Quantity
+			print(io, s, " = ", round(typeof(v), v, sigdigits=5), ", ")
+		else
+			print(io, s, " = ", round(v, sigdigits=5), ", ")
+		end
+	end
+	print(io, "\b\b")
+end
+
+
+
+
 mutable struct TFModelExp <: AbstractModel
 	measured::MeasuredValues
 	derived::DerivedParameters
@@ -194,10 +221,9 @@ mutable struct TFModelExp <: AbstractModel
 	ode_solution::Union{Missing, ODESolution}
 end
 
+measured(M::TFModelExp) = M.measured
+derived(M::TFModelExp) = M.derived
 parameters(M::TFModelExp) = uconvert.(units(M), M.parameters)
-
-# Constructors
-TFModelExp(tri::MeasuredValues) = TFModelExp(tri, DerivedParameters(tri), missing, missing)
 
 function TFModelExp(p̂::ExpModelParameters, meas::MeasuredValues)
 	con = DerivedParameters(meas, TrialParameters(p̂, meas))
@@ -211,38 +237,6 @@ end
 function TFModelExp(M::TFModelExp, sol::ODESolution)
 	M.ode_solution = sol
 	return M
-end
-
-# Convert to dimensional parameters
-function dimensionalize(::Type{TFModelExp}, c::MeasuredValues, p::AbstractVector{<:Real})
-	return p / c.ts
-end
-
-dimensionalize(M::TFModelExp, p::AbstractVector{<:Real}) = dimensionalize(TFModelExp, M.measured, p)
-
-# Convert to nondimensional parameters
-function nondimensionalize(::Type{TFModelExp}, c::MeasuredValues, p̂::AbstractVector{<:Quantity})
-	return uconvert.(Unitful.NoUnits, p̂ * c.ts)
-end
-
-# function nondimensionalize(M::ModelM,p̂::AbstractVector{<:Real})
-# 	c = M.derived
-# 	a = ustrip(uconvert(unit(1/units(M)[1]),c.ts/c.h₀))
-# 	b = ustrip(uconvert(unit(1/units(M)[2]),c.ts))
-# 	return [ p̂[1]*a, p̂[2]*b, p̂[3]*b, p̂[4]*b ]
-# end
-
-function show(io::IO, p::ExpModelParameters)
-	print(io, "Model parameters:    ")
-	for s in propertynames(p)
-		v = getproperty(p, s)
-		if v isa Quantity
-			print(io, s, " = ", round(typeof(v), v, sigdigits=5), ", ")
-		else
-			print(io, s, " = ", round(v, sigdigits=5), ", ")
-		end
-	end
-	print(io, "\b\b")
 end
 
 function show(io::IO, M::TFModelExp)

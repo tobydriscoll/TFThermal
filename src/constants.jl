@@ -13,6 +13,7 @@ const Ts = 20u"°C"            # saturation temp (guess); deg C
 const Tb = 37u"°C"            # body temp
 const Tinf = 25u"°C"          # room temp
 const κc = 1.9e-7u"m^2/s"     # corneal thermal diffusivity, m^2/s
+const ỹ_c = -5.      # 5 corneal thicknesses per Li et al
 
 ## solute parameters
 # fcr is critical concentation for max value in intensity at fixed d
@@ -30,10 +31,10 @@ const fcr2 = ρ*fcr/Mw_FL
 	T₀::typeof(1.0u"°C")
 end
 
-function show(io::IO, m::MeasuredValues)
-	print(io,"Measured trial values:")
-	print(io,"    h₀ = $(m.h₀), ts = $(m.ts), f̂₀ = $(100m.f̂₀) %, T₀ = $(m.T₀)")
-end
+# function show(io::IO, m::MeasuredValues)
+# 	print(io,"Measured trial values:")
+# 	print(io,"    h₀ = $(m.h₀), ts = $(m.ts), f̂₀ = $(100m.f̂₀) %, T₀ = $(m.T₀)")
+# end
 
 # these are needed to determine the behavior of a model
 @with_kw mutable struct TrialParameters
@@ -53,7 +54,6 @@ end
 	K̃::Float64
 	k̃::Float64
 	d̃::Float64
-	ỹ_c::Float64
 	T̃₀::Float64
 	Bi::Float64
 	strain::Function
@@ -81,7 +81,6 @@ function DerivedParameters(p::MeasuredValues, trial::TrialParameters)
 
 	# cornea-related
 	# depth into eye for thermal problem
-	ỹ_c = -5.    # 5 corneal thicknesses per Li et al
 	k̃ = k / kc       # conductivity ratio
 	d̃ = h₀ / dc      # depth ratio
 	Pr = κc * ts / dc^2   # Prandtl number
@@ -98,7 +97,7 @@ function DerivedParameters(p::MeasuredValues, trial::TrialParameters)
 	# nondimensionalize strain function
 	strain = t -> ustrip(ĝ(t) * ts)
 
-	return DerivedParameters(Pc, Pr, f₀, ϕ, ℒ, T̃inf, K̃, k̃, d̃, ỹ_c, T̃₀, Bi, strain)
+	return DerivedParameters(Pc, Pr, f₀, ϕ, ℒ, T̃inf, K̃, k̃, d̃, T̃₀, Bi, strain)
 end
 
 # function show(io::IO, c::DerivedParameters)
