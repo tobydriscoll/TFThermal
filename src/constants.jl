@@ -43,7 +43,7 @@ end
 	ĝ::Function = t -> NaN
 end
 
-# these are what appear in the equations
+# These are known from MeasuredValues only
 @with_kw struct DerivedParameters
 	Pc::Float64
 	Pr::Float64
@@ -51,26 +51,24 @@ end
 	ϕ::Float64
 	ℒ::Float64
 	T̃inf::Float64
-	K̃::Float64
 	k̃::Float64
+	K̃::Float64
 	d̃::Float64
 	T̃₀::Float64
 	Bi::Float64
 	strain::Function
 end
 
-function DerivedParameters(p::MeasuredValues, trial::TrialParameters)
+function DerivedParameters(p::MeasuredValues)
+	# These only require measured values. Needed for defining the intensity function without knowing model parameters.
 	@unpack h₀, ts, f̂₀, T₀ = p
-	@unpack v₀, Bi, ĝ = trial
-	k = 0.68u"W/(m*K)"
 	h₀ = uconvert(u"m", h₀)
+	k = 0.68u"W/(m*K)"
 
-	# dimensional parameters computed for trials
 	ℓ = uconvert(u"μm", (ts * σ₀ * h₀^3 / μ) ^ 0.25)
-	U = ℓ/ts
-	ϵ = h₀/ℓ    # aspect ratio
+	U = ℓ / ts
+	ϵ = h₀ / ℓ    # aspect ratio
 	V = ϵ*U
-	capK = (Tb - Ts) / (ρ * v₀)     # gets initial v0 from temperatures
 
 	## dimensionless parameters
 	# dimensionless extinction coefficient
@@ -84,20 +82,32 @@ function DerivedParameters(p::MeasuredValues, trial::TrialParameters)
 	k̃ = k / kc       # conductivity ratio
 	d̃ = h₀ / dc      # depth ratio
 	Pr = κc * ts / dc^2   # Prandtl number
-
-	# evap-related
-	# v = uconvert(Unitful.NoUnits, v₀ / (h₀ / ts))
-	ℒ = uconvert(Unitful.NoUnits, Lm * (ρ * h₀ / ts) / (k * (Tb - Ts) / h₀))   # ratio of latent to conducted
-	K̃ = uconvert(Unitful.NoUnits, capK * (ρ * h₀ / ts) / (Tb - Ts))
     T̃inf = uconvert(Unitful.NoUnits, (Tinf - Ts) / ( Tb - Ts ))
+	ℒ = uconvert(Unitful.NoUnits, Lm * (ρ * h₀ / ts) / (k * (Tb - Ts) / h₀))   # ratio of latent to conducted
 
 	# nondimensionalize experimental temperatures
 	T̃₀ = (T₀ - Ts) / (Tb - Ts)
 
+	# a few can't be found without also knowing trial parameters
+	return DerivedParameters(Pc, Pr, f₀, ϕ, ℒ, T̃inf, k̃, NaN, d̃, T̃₀, 9e-4, identity)
+end
+
+function DerivedParameters(p::MeasuredValues, trial::TrialParameters)
+	@unpack h₀, ts, f̂₀, T₀ = p
+	@unpack v₀, Bi, ĝ = trial
+	h₀ = uconvert(u"m", h₀)
+
+	dv = DerivedParameters(p)
+	@unpack Pc, Pr, f₀, ϕ, ℒ, T̃inf, k̃, d̃, T̃₀ = dv
+
+	# evap-related
+	capK = (Tb - Ts) / (ρ * v₀)     # gets initial v0 from temperatures
+	K̃ = uconvert(Unitful.NoUnits, capK * (ρ * h₀ / ts) / (Tb - Ts))
+
 	# nondimensionalize strain function
 	strain = t -> ustrip(ĝ(t) * ts)
 
-	return DerivedParameters(Pc, Pr, f₀, ϕ, ℒ, T̃inf, K̃, k̃, d̃, T̃₀, Bi, strain)
+	return DerivedParameters(Pc, Pr, f₀, ϕ, ℒ, T̃inf, k̃, K̃, d̃, T̃₀, Bi, strain)
 end
 
 # function show(io::IO, c::DerivedParameters)

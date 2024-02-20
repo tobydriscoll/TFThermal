@@ -169,33 +169,32 @@ mutable struct ExpModelParameters <: AbstractModelParameters
 	v₀::typeof(1.0u"μm/minute")
 	b₁::typeof(1.0u"1/s")
 	b₂::typeof(1.0u"1/s")
-	Bi::Float64
 end
 
-units(::Type{ExpModelParameters}) = [u"μm/minute", u"1/s", u"1/s", NoUnits]
+units(::Type{ExpModelParameters}) = [u"μm/minute", u"1/s", u"1/s"]
 units(p::ExpModelParameters) = units(typeof(p))
 bounds(::Type{ExpModelParameters}) = (
-	(0.05u"μm/minute", -2u"1/s", 0u"1/s", 2e-4),
-	(  20u"μm/minute",  4u"1/s", 2u"1/s", 2e-3)
+	ExpModelParameters(0.05u"μm/minute", -2u"1/s", 0u"1/s"),
+	ExpModelParameters(  20u"μm/minute",  4u"1/s", 2u"1/s")
 )
 
 function nondimensional(p̂::ExpModelParameters, measured::MeasuredValues)
 	δ = measured.h₀
 	τ = measured.ts
-	return uconvert.(Unitful.NoUnits, [p̂.v₀ * τ / δ, p̂.b₁ * τ, p̂.b₂ * τ, p̂.Bi])
+	return uconvert.(Unitful.NoUnits, [p̂.v₀ * τ / δ, p̂.b₁ * τ, p̂.b₂ * τ])
 end
 
 function dimensional(::Type{ExpModelParameters}, p::AbstractVector{<:Real}, measured::MeasuredValues)
 	δ = measured.h₀
 	τ = measured.ts
-	return p .* [δ / τ, 1 / τ, 1 / τ, 1]
+	return p .* [δ / τ, 1 / τ, 1 / τ]
 end
 
 # create strain function from parameters
 function TrialParameters(p̂::ExpModelParameters, meas::MeasuredValues)
 	# time is always nondimensional
 	ĝ(t) = p̂.b₁ * exp(-p̂.b₂ * t * meas.ts)
-	return TrialParameters(v₀=p̂.v₀, Bi=p̂.Bi, ĝ=ĝ)
+	return TrialParameters(v₀=p̂.v₀, ĝ=ĝ)
 end
 
 function show(io::IO, p::ExpModelParameters)
@@ -223,6 +222,7 @@ end
 
 measured(M::TFModelExp) = M.measured
 derived(M::TFModelExp) = M.derived
+parameter_type(::Type{TFModelExp}) = ExpModelParameters
 parameters(M::TFModelExp) = uconvert.(units(M), M.parameters)
 
 function TFModelExp(p̂::ExpModelParameters, meas::MeasuredValues)

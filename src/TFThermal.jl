@@ -13,11 +13,13 @@ using DifferentialEquations
 import Base: show
 # import Polynomials: fit
 import DifferentialEquations: solve
-export MeasuredValues, TrialParameters, DerivedParameters, ExpModelParameters, units, TFModelExp, solution, evap_rate, dimensionalize, nondimensionalize, solve, intensity
+export MeasuredValues, TrialParameters, DerivedParameters, ExpModelParameters, units, bounds, TFModelExp, solution, evap_rate, dimensional, nondimensional, solve, intensity
+export fit, FittedModel
 
 export Chebyshev
 include("chebyshev.jl")
 include("constants.jl")
 include("models.jl")
+include("fit.jl")
 
 end # module TFThermal
