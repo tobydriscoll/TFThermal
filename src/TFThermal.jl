@@ -3,8 +3,9 @@ module TFThermal
 # using Polynomials
 using Unitful, Parameters
 using FFTW, LinearAlgebra, ComponentArrays
-# using NLopt
+using NLopt
 using DifferentialEquations
+using SciMLBase: successful_retcode
 # using DiffEqParamEstim
 # using Statistics
 # using StatsBase

@@ -7,7 +7,7 @@ tp = MeasuredValues(
     T₀=33.5u"°C",
     )
 
-phat = ExpModelParameters((1/6)*u"μm/s", 0.04u"1/s", 0.04u"1/s")
+phat = ExpModelParameters((1/6)*u"μm/minute", 0.04u"1/s", 0.04u"1/s")
 model = TFModelExp(phat, tp)
 s = solve(model);
 h, c, fl, Tc = solution(s, dim=true)
@@ -18,5 +18,6 @@ Th = solution(s, :Th, dim=true)
 
 t_ = collect(0:0.025:1)
 I_ = I.(t_)
-initpar = ExpModelParameters(2.0*u"μm/s", 1.0u"1/s", 0.0u"1/s")
-fit(TFModelExp, tp, t_, I_, initpar)
+initpar = ExpModelParameters(0.1*u"μm/minute", 0.0u"1/s", 0.0u"1/s")
+bestmin, bestparam = fit(TFModelExp, tp, t_, I_, [initpar], method=:LN_SBPLX)
+bestmod = solve(TFModelExp(ExpModelParameters(bestparam, tp), tp))

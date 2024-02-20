@@ -69,7 +69,7 @@ end
 function make_optim_ivp(MT::Type{<:AbstractModel}, measured)
 	y = Chebyshev.points(CHEBN, [ỹ_c, 0])
 	Dy = Chebyshev.diffmat(CHEBN, [ỹ_c, 0])
-	@unpack Pc, Pr, ℒ, k̃, d̃, T̃inf, T̃₀, f₀, Bi = DerivedParameters(measured)
+	@unpack Pc, Pr, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, f₀, Bi = DerivedParameters(measured)
 	function ode!(du, u, p, t)
 		@unpack h, c, fl, Tc = u
 		dimen = dimensional(MT, p, measured)
@@ -126,49 +126,56 @@ function fit(
 		return Q / 2
 	end
 
-	# Impose a penalty for early termination.
-	function misfit_fail(sol)
-		if sol.retcode==:Success
-			h = t -> sol(t, idxs=:h)
-			f = t -> sol(t, idxs=:f)
+	PT = parameter_type(MT)
+	# to be minimized to find model parameters
+	function objective(x, grad)
+		p̂ = ExpModelParameters(x, measured)
+		# @show p̂
+		M = solve(MT(p̂, measured))
+		sol = M.ode_solution
+		# Impose a penalty for early termination.
+		if successful_retcode(sol.retcode)
+			h = solution(M, :h)
+			f = solution(M, :fl)
 			return misfit(inten, h, f, t, I)
 		else
 			return 1/sol.t[end]
 		end
 	end
 
-	lossfun = build_loss_objective(
-		ivp,
-		Tsit5(),
-		misfit_fail,
-		maxiters = 2000,
-		verbose=false,
-		verbose_opt=false,
-		verbose_steps=10,
-		reltol=1e-8,
-		abstol=1e-9,
-		callback=solvercb(inten)
-		)
+	# lossfun = build_loss_objective(
+	# 	ivp,
+	# 	Tsit5(),
+	# 	misfit_fail,
+	# 	maxiters = 2000,
+	# 	verbose=false,
+	# 	verbose_opt=false,
+	# 	verbose_steps=10,
+	# 	reltol=1e-8,
+	# 	abstol=1e-9,
+	# 	callback=solvercb(inten)
+	# 	)
 
 		# Set up optimization.
-		n = length(names(M))
+		n = length(units(PT))
 		opt = Opt(method, n)
-		PT = parameter_type(MT)
 		lower, upper = bounds(PT)
 		opt.lower_bounds = nondimensional(lower, measured)
 		opt.upper_bounds = nondimensional(upper, measured)
 		opt.xtol_rel = 1e-5
 		opt.xtol_abs = 1e-7
-		opt.maxeval = 10000
-		opt.min_objective = lossfun
+		opt.maxeval = 1000
+		opt.min_objective = objective
+		# @show opt.upper_bounds
 
 		# Optimize over all initializations.
-		bestmin,bestpar = Inf, nondimensional(initpar[1], measured)
+		bestmin, bestpar = Inf, nondimensional(initpar[1], measured)
 		bestret = []
 		for p̂ in initpar
 			p = nondimensional(p̂, measured)
+			# @show objective(p, [])
 			minval, minp, ret = NLopt.optimize(opt, p)
-			#(typeof(M)==ModelM) && (@show minval,p,minp,ret)
+			# @show minval, minp, ret
 			if minval < bestmin
 				bestmin, bestpar, bestret = minval, minp, ret
 			end

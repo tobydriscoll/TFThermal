@@ -2,7 +2,7 @@
 
 julia_version = "1.10.1"
 manifest_format = "2.0"
-project_hash = "f6acb14633409263a9887870e7b997f27516d276"
+project_hash = "9de26b076d4d89986618aa0859941be3c39cfa23"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "41c37aa88889c171f1300ceac1313c06e891d245"
@@ -807,6 +807,22 @@ git-tree-sha1 = "a0b464d183da839699f4c79e7606d9d186ec172c"
 uuid = "d41bc354-129a-5804-8e4c-c37616107c6c"
 version = "7.8.3"
 
+[[deps.NLopt]]
+deps = ["NLopt_jll"]
+git-tree-sha1 = "d1d09c342c3dd9b3bae985b088bd928632e4d79e"
+uuid = "76087f3c-5699-56af-9a33-bf431cd00edd"
+version = "1.0.1"
+weakdeps = ["MathOptInterface"]
+
+    [deps.NLopt.extensions]
+    NLoptMathOptInterfaceExt = ["MathOptInterface"]
+
+[[deps.NLopt_jll]]
+deps = ["Artifacts", "JLLWrappers", "Libdl", "Pkg"]
+git-tree-sha1 = "9b1f15a08f9d00cdb2761dcfa6f453f5d0d6f973"
+uuid = "079eb43e-fd8e-5478-9966-2cf3e3edb778"
+version = "2.7.1+0"
+
 [[deps.NLsolve]]
 deps = ["Distances", "LineSearches", "LinearAlgebra", "NLSolversBase", "Printf", "Reexport"]
 git-tree-sha1 = "019f12e9a1a7880459d0173c182e6a99365d7ac1"
@@ -1094,9 +1110,9 @@ version = "0.6.42"
 
 [[deps.SciMLBase]]
 deps = ["ADTypes", "ArrayInterface", "CommonSolve", "ConstructionBase", "Distributed", "DocStringExtensions", "EnumX", "FillArrays", "FunctionWrappersWrappers", "IteratorInterfaceExtensions", "LinearAlgebra", "Logging", "Markdown", "PrecompileTools", "Preferences", "Printf", "RecipesBase", "RecursiveArrayTools", "Reexport", "RuntimeGeneratedFunctions", "SciMLOperators", "StaticArraysCore", "Statistics", "SymbolicIndexingInterface", "Tables", "TruncatedStacktraces"]
-git-tree-sha1 = "a123011b1711f3449bc4e5d66746be5725af92fd"
+git-tree-sha1 = "33e40003f4ef424e8a8700e0a3a189c6ece2af27"
 uuid = "0bca4576-84f4-4d90-8ffe-ffa030f20462"
-version = "2.26.0"
+version = "2.26.1"
 
     [deps.SciMLBase.extensions]
     SciMLBaseChainRulesCoreExt = "ChainRulesCore"

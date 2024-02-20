@@ -190,6 +190,8 @@ function dimensional(::Type{ExpModelParameters}, p::AbstractVector{<:Real}, meas
 	return p .* [δ / τ, 1 / τ, 1 / τ]
 end
 
+ExpModelParameters(p::AbstractVector{<:Real}, measured::MeasuredValues) = ExpModelParameters(dimensional(ExpModelParameters, p, measured)...)
+
 # create strain function from parameters
 function TrialParameters(p̂::ExpModelParameters, meas::MeasuredValues)
 	# time is always nondimensional
@@ -223,7 +225,7 @@ end
 measured(M::TFModelExp) = M.measured
 derived(M::TFModelExp) = M.derived
 parameter_type(::Type{TFModelExp}) = ExpModelParameters
-parameters(M::TFModelExp) = uconvert.(units(M), M.parameters)
+parameters(M::TFModelExp) =  M.parameters
 
 function TFModelExp(p̂::ExpModelParameters, meas::MeasuredValues)
 	con = DerivedParameters(meas, TrialParameters(p̂, meas))
