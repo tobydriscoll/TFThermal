@@ -126,6 +126,29 @@ function fit(
 		return Q / 2
 	end
 
+	r = diff(log.(I)) ./ diff(t)
+	logÎ = similar(I)
+	r̂ = similar(r)
+	function misfit_ratio(Ifun, h, f, t, I)
+		for n in eachindex(t)
+			# @show n, Ifun(h(t[n]), f(t[n]))
+			logÎ[n] = log(max(eps(), Ifun(h(t[n]), f(t[n]))))
+			if n > 1
+				r̂[n-1] = (logÎ[n] - logÎ[n-1]) / (t[n] - t[n-1])
+			end
+		end
+		# trapezoid rule
+		Q = 0.0
+		y = (r̂[1] - r[1]) ^ 2
+		x = t[2]
+		for (t, r, r̂) in zip(t[3:end], r[2:end], r̂[2:end])
+			ynew = (r̂ - r) ^ 2
+			Q += (t - x) * (y + ynew)
+			x, y = t, ynew
+		end
+		return Q / 2
+	end
+
 	PT = parameter_type(MT)
 	# to be minimized to find model parameters
 	function objective(x, grad)
@@ -137,7 +160,7 @@ function fit(
 		if successful_retcode(sol.retcode)
 			h = solution(M, :h)
 			f = solution(M, :fl)
-			return misfit(inten, h, f, t, I)
+			return misfit_ratio(inten, h, f, t, I)
 		else
 			return 1/sol.t[end]
 		end
@@ -175,7 +198,7 @@ function fit(
 			p = nondimensional(p̂, measured)
 			# @show objective(p, [])
 			minval, minp, ret = NLopt.optimize(opt, p)
-			# @show minval, minp, ret
+			@show minval, minp, ret
 			if minval < bestmin
 				bestmin, bestpar, bestret = minval, minp, ret
 			end
