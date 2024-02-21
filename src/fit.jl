@@ -78,15 +78,14 @@ function fit(
 
 	@assert all(@. 0 ≤ t ≤ 1) "Invalid time vector."
 	derived = DerivedParameters(measured)
-	inten = intensity(derived)
 
-	function misfit(Ifun, h, f, t, I)
+	function misfit(Î, t, I)
 		Q = 0.0
 		# trapezoid rule
-		y = (Ifun(h(t[1]), f(t[1])) - I[1]) ^ 2
+		y = (Î(t[1]) - I[1]) ^ 2
 		x = t[1]
 		for (t, I) in zip(t[2:end], I[2:end])
-			ynew = (Ifun(h(t), f(t)) - I) ^ 2
+			ynew = (Î(t) - I) ^ 2
 			Q += (t - x) * (y + ynew)
 			x, y = t, ynew
 		end
@@ -96,10 +95,10 @@ function fit(
 	r = diff(log.(I)) ./ diff(t)
 	logÎ = similar(I)
 	r̂ = similar(r)
-	function misfit_ratio(Ifun, h, f, t, I)
+	function misfit_ratio(Î, t, I)
 		for n in eachindex(t)
 			# @show n, Ifun(h(t[n]), f(t[n]))
-			logÎ[n] = log(max(eps(), Ifun(h(t[n]), f(t[n]))))
+			logÎ[n] = log(max(eps(), Î(t[n])))
 			if n > 1
 				r̂[n-1] = (logÎ[n] - logÎ[n-1]) / (t[n] - t[n-1])
 			end
@@ -125,26 +124,12 @@ function fit(
 		sol = M.ode_solution
 		# Impose a penalty for early termination.
 		if successful_retcode(sol.retcode)
-			h = solution(M, :h)
-			f = solution(M, :fl)
-			return misfit_ratio(inten, h, f, t, I)
+			Î = intensity(M)
+			return misfit_ratio(Î, t, I)
 		else
 			return 1/sol.t[end]
 		end
 	end
-
-	# lossfun = build_loss_objective(
-	# 	ivp,
-	# 	Tsit5(),
-	# 	misfit_fail,
-	# 	maxiters = 2000,
-	# 	verbose=false,
-	# 	verbose_opt=false,
-	# 	verbose_steps=10,
-	# 	reltol=1e-8,
-	# 	abstol=1e-9,
-	# 	callback=solvercb(inten)
-	# 	)
 
 		# Set up optimization.
 		n = length(units(PT))
@@ -174,8 +159,6 @@ function fit(
 	if bestret == :FAILURE
 		@warn "optimization failed for $(typeof(M))"
 	end
-
-	#@show typeof(M),bestmin,bestpar,dimensionalize(M,bestpar)
 
 	return bestmin, bestpar #FittedModel(solve(M,bestpar),t,I)
 end
