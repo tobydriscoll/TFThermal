@@ -66,38 +66,6 @@ function Dict(f::FittedModel)
 	Dict( ("model"=>Dict(model(f)), "t"=>f.t, "I"=>f.I, "residual"=>f.residual) )
 end
 
-function make_optim_ivp(MT::Type{<:AbstractModel}, measured)
-	y = Chebyshev.points(CHEBN, [ỹ_c, 0])
-	Dy = Chebyshev.diffmat(CHEBN, [ỹ_c, 0])
-	@unpack Pc, Pr, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, f₀, Bi = DerivedParameters(measured)
-	function ode!(du, u, p, t)
-		@unpack h, c, fl, Tc = u
-		dimen = dimensional(MT, p, measured)
-		trial = TrialParameters(dimen, measured)
-		@unpack Pc, Pr, Bi, ℒ, K̃, k̃, d̃, T̃inf, T̃₀, f₀, strain = DerivedParameters(measured, trial)
-		T₀ = Tc[end]  # temp at corneal surface
-		Th = ( T₀ + Bi * h * T̃inf ) / ( 1 + ( Bi + ℒ / K̃ ) * h )  # TF surface temp
-		Je = ( T₀ + T̃inf * Bi * h) / ( K̃ * (1 + Bi * h) + ℒ * h ) # evap rate
-
-		tmp = Je - Pc * (c-1)
-		du.h = -strain(t) * h - tmp
-		du.c = tmp * c / h
-		du.fl = tmp * fl / h
-
-		Tcʹ = Dy * u.Tc
-		du.Tc .= Pr * (Dy * Tcʹ)
-		du.Tc[1] = Tc[1] - 1
-		du.Tc[end] = Tcʹ[end] + (k̃ / d̃) * ( ℒ * Je + Bi * (Th - T̃inf) )
-		return du
-	end
-	Mass = Diagonal([1; 1; 1; 0; ones(CHEBN - 2); 0])
-	T₀₀ = T̃₀ * (1 + Bi + ℒ / K̃) - Bi * T̃inf  # corneal surface temp in theory
-	T_init = @. T₀₀ + (1 - T₀₀) * (y / ỹ_c)
-	u0 = ComponentArray(h = 1., c = 1., fl = f₀, Tc = T_init)
-	# p = nondimensional(MT, parameters(MT,measured))
-	return ODEProblem(ODEFunction(ode!, mass_matrix=Mass), u0, (0., 1.))
-end
-
 # Fit a single model to nondimensional data, giving initial values.
 function fit(
 	MT::Type{<:AbstractModel},
@@ -112,7 +80,6 @@ function fit(
 	derived = DerivedParameters(measured)
 	inten = intensity(derived)
 
-	ivp = make_optim_ivp(MT, measured)
 	function misfit(Ifun, h, f, t, I)
 		Q = 0.0
 		# trapezoid rule
