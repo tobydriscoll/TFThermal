@@ -72,6 +72,7 @@ function fit(
 	measured::MeasuredValues,
 	t::AbstractVector{<:Real},
 	I::AbstractVector{<:Real},
+	Tₕ::AbstractVector{<:Real},
 	initpar;
 	method=:LN_NELDERMEAD
 	)
@@ -79,28 +80,32 @@ function fit(
 	@assert all(@. 0 ≤ t ≤ 1) "Invalid time vector."
 	derived = DerivedParameters(measured)
 
-	function misfit(Î, t, I)
+	function misfit(fun, t, val)
 		Q = 0.0
 		# trapezoid rule
-		y = (Î(t[1]) - I[1]) ^ 2
+		y = (fun(t[1]) - val[1]) ^ 2
 		x = t[1]
-		for (t, I) in zip(t[2:end], I[2:end])
-			ynew = (Î(t) - I) ^ 2
+		for (t, I) in zip(t[2:end], val[2:end])
+			ynew = (fun(t) - I) ^ 2
 			Q += (t - x) * (y + ynew)
 			x, y = t, ynew
 		end
 		return Q / 2
 	end
 
-	r = diff(log.(I)) ./ diff(t)
-	logÎ = similar(I)
+	r = similar(t, length(t)-1)
 	r̂ = similar(r)
-	function misfit_ratio(Î, t, I)
+	log_v = similar(I)
+	log_v̂ = similar(I)
+	function misfit_ratio(fun, t, val)
 		for n in eachindex(t)
 			# @show n, Ifun(h(t[n]), f(t[n]))
-			logÎ[n] = log(max(eps(), Î(t[n])))
+			log_v̂[n] = log(max(eps(), fun(t[n])))
+			log_v[n] = log(val[n])
 			if n > 1
-				r̂[n-1] = (logÎ[n] - logÎ[n-1]) / (t[n] - t[n-1])
+				idt = 1 / (t[n] - t[n-1])
+				r[n-1] = (log_v[n] - log_v[n-1]) * idt
+				r̂[n-1] = (log_v̂[n] - log_v̂[n-1]) * idt
 			end
 		end
 		# trapezoid rule
@@ -125,7 +130,11 @@ function fit(
 		# Impose a penalty for early termination.
 		if successful_retcode(sol.retcode)
 			Î = intensity(M)
-			return misfit_ratio(Î, t, I)
+			Q1 = misfit(Î, t, I)
+			T̂ₕ = solution(M, :Th, dim=false)
+			Q2 = misfit(T̂ₕ, t, Tₕ)
+			# @show Q1, Q2
+			return Q1 + Q2
 		else
 			return 1/sol.t[end]
 		end

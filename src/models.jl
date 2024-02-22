@@ -90,8 +90,10 @@ function solution(M::AbstractModel, component::Symbol; dim=false)
 			Th = ( T₀ + Bi * h * T̃inf ) / ( 1 + ( Bi + ℒ / K̃ ) * h )
 			if dim
 				Th = Ts + (Tb - Ts) * Th
+				return uconvert(u"°C", Th)
+			else
+				return Th
 			end
-			return uconvert(u"°C", Th)
 		end
 	else
 		if dim
