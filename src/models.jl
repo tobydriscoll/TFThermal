@@ -160,6 +160,31 @@ TrialParameters(::AbstractModelParameters, ::MeasuredValues) = @error "No parame
 nondimensional(::AbstractModelParameters, ::MeasuredValues) = @error "No nondimensionalization defined for this model type"
 dimensional(::Type{<:AbstractModelParameters}, ::AbstractVector, ::MeasuredValues) = @error "No dimensionalization defined for this model type"
 
+import Base:+, -, *
+function +(p::AbstractModelParameters, q::AbstractModelParameters)
+	x = []
+	for s in propertynames(p)
+		push!(x, getproperty(p, s) + getproperty(q, s))
+	end
+	return typeof(p)(x...)
+end
+function -(p::AbstractModelParameters, q::AbstractModelParameters)
+	x = []
+	for s in propertynames(p)
+		push!(x, getproperty(p, s) - getproperty(q, s))
+	end
+	return typeof(p)(x...)
+end
+function *(p::AbstractModelParameters, c::Real)
+	@assert c >= 0 "Multiplication by negative number not allowed"
+	x = []
+	for s in propertynames(p)
+		push!(x, c*getproperty(p, s))
+	end
+	return typeof(p)(x...)
+end
+*(c::Real, p::AbstractModelParameters) = p*c
+
 #######################################################################
 # Specific model types
 #######################################################################
@@ -177,8 +202,8 @@ end
 units(::Type{ExpModelParameters}) = [u"μm/minute", u"1/s", u"1/s", Unitful.NoUnits]
 units(p::ExpModelParameters) = units(typeof(p))
 bounds(::Type{ExpModelParameters}) = (
-	ExpModelParameters(0.05u"μm/minute", -2u"1/s", 0u"1/s", 2e-4),
-	ExpModelParameters(  40u"μm/minute",  4u"1/s", 2u"1/s", 16e-4)
+	ExpModelParameters(0.05u"μm/minute", -2u"1/s", 0u"1/s", 5e-4),
+	ExpModelParameters(  40u"μm/minute",  4u"1/s", 2u"1/s", 12e-4)
 )
 
 function nondimensional(p̂::ExpModelParameters, measured::MeasuredValues)
@@ -216,8 +241,6 @@ function show(io::IO, p::ExpModelParameters)
 end
 
 
-
-
 mutable struct TFModelExp <: AbstractModel
 	measured::MeasuredValues
 	derived::DerivedParameters
@@ -233,6 +256,11 @@ parameters(M::TFModelExp) =  M.parameters
 function TFModelExp(p̂::ExpModelParameters, meas::MeasuredValues)
 	con = DerivedParameters(meas, TrialParameters(p̂, meas))
 	return TFModelExp(meas, con, p̂, missing)
+end
+
+function TFModelExp(p::AbstractVector{<:Real}, meas::MeasuredValues)
+	p̂ = ExpModelParameters(p, meas)
+	return TFModelExp(p̂, meas)
 end
 
 function TFModelExp(M::TFModelExp, p̂::ExpModelParameters)
