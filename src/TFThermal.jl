@@ -6,6 +6,7 @@ using FFTW, LinearAlgebra, ComponentArrays
 using NLopt
 using DifferentialEquations
 using SciMLBase: successful_retcode
+using Peaks, Polynomials, HampelOutliers
 # using DiffEqParamEstim
 # using Statistics
 # using StatsBase
@@ -22,5 +23,6 @@ include("chebyshev.jl")
 include("constants.jl")
 include("models.jl")
 include("fit.jl")
+include("trim.jl")
 
 end # module TFThermal
