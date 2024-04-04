@@ -160,6 +160,10 @@ TrialParameters(::AbstractModelParameters, ::MeasuredValues) = @error "No parame
 nondimensional(::AbstractModelParameters, ::MeasuredValues) = @error "No nondimensionalization defined for this model type"
 dimensional(::Type{<:AbstractModelParameters}, ::AbstractVector, ::MeasuredValues) = @error "No dimensionalization defined for this model type"
 
+# import Base.convert
+# convert(Vector, p::AbstractModelParameters) = [getproperty(p, s) for s in propertynames(p)]
+# Vector(p::AbstractModelParameters) = convert(Vector, p)
+
 import Base:+, -, *
 function +(p::AbstractModelParameters, q::AbstractModelParameters)
 	x = []
@@ -202,7 +206,7 @@ end
 units(::Type{ExpModelParameters}) = [u"μm/minute", u"1/s", u"1/s", Unitful.NoUnits]
 units(p::ExpModelParameters) = units(typeof(p))
 bounds(::Type{ExpModelParameters}) = (
-	ExpModelParameters(0.05u"μm/minute", -2u"1/s", 0u"1/s", 5e-4),
+	ExpModelParameters(0.05u"μm/minute", -2u"1/s", 0u"1/s", 1e-4),
 	ExpModelParameters(  40u"μm/minute",  4u"1/s", 2u"1/s", 12e-4)
 )
 
