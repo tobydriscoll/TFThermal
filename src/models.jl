@@ -160,6 +160,10 @@ TrialParameters(::AbstractModelParameters, ::MeasuredValues) = @error "No parame
 nondimensional(::AbstractModelParameters, ::MeasuredValues) = @error "No nondimensionalization defined for this model type"
 dimensional(::Type{<:AbstractModelParameters}, ::AbstractVector, ::MeasuredValues) = @error "No dimensionalization defined for this model type"
 
+function Base.show(io::IO, p::AbstractModelParameters)
+	print(io, "Model parameters:    ", struct_string(p))
+end
+
 # import Base.convert
 # convert(Vector, p::AbstractModelParameters) = [getproperty(p, s) for s in propertynames(p)]
 # Vector(p::AbstractModelParameters) = convert(Vector, p)
@@ -231,18 +235,6 @@ function TrialParameters(p̂::ExpModelParameters, meas::MeasuredValues)
 	return TrialParameters(v₀=p̂.v₀, ĝ=ĝ, Bi=p̂.Bi)
 end
 
-function show(io::IO, p::ExpModelParameters)
-	print(io, "Model parameters:    ")
-	for s in propertynames(p)
-		v = getproperty(p, s)
-		if v isa Quantity
-			print(io, s, " = ", round(typeof(v), v, sigdigits=5), ", ")
-		else
-			print(io, s, " = ", round(v, sigdigits=5), ", ")
-		end
-	end
-	print(io, "\b\b")
-end
 
 
 mutable struct TFModelExp <: AbstractModel

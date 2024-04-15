@@ -31,10 +31,9 @@ const fcr2 = ρ*fcr/Mw_FL
 	T₀::typeof(1.0u"°C")
 end
 
-# function show(io::IO, m::MeasuredValues)
-# 	print(io,"Measured trial values:")
-# 	print(io,"    h₀ = $(m.h₀), ts = $(m.ts), f̂₀ = $(100m.f̂₀) %, T₀ = $(m.T₀)")
-# end
+function Base.show(io::IO, p::MeasuredValues)
+	print(io, "Trial measurements:    ", struct_string(p))
+end
 
 # these are needed to determine the behavior of a model
 @with_kw mutable struct TrialParameters
@@ -109,9 +108,3 @@ function DerivedParameters(p::MeasuredValues, trial::TrialParameters)
 
 	return DerivedParameters(Pc, Pr, f₀, ϕ, ℒ, T̃inf, k̃, K̃, d̃, T̃₀, Bi, strain)
 end
-
-# function show(io::IO, c::DerivedParameters)
-# 	println(io,"DerivedParameters for")
-# 	println(io,"    h₀ = $(c.h₀), ts = $(c.ts), f̂₀ = $(c.f̂₀)")
-# 	# println(io,"    Pc = $(c.Pc), f₀ = $(c.f₀), ϕ = $(c.ϕ)")
-# end

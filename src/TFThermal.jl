@@ -19,6 +19,7 @@ export MeasuredValues, TrialParameters, DerivedParameters, ExpModelParameters, u
 export fit, FittedModel
 
 export Chebyshev
+include("utils.jl")
 include("chebyshev.jl")
 include("constants.jl")
 include("models.jl")
