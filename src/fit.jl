@@ -74,10 +74,11 @@ function fit(
 	I::AbstractVector{<:Real},
 	Tₕ::AbstractVector{<:Real};
 	initpar=missing,
-	method=:LN_NELDERMEAD
+	# method=:LN_NELDERMEAD
+	method=:LN_PRAXIS
 	)
 
-	@assert all(@. 0 ≤ t ≤ 1) "Invalid time vector."
+	@assert all(@. 0 ≤ t ≤ 1 + 2eps(Float32)) "Invalid time vector, $(extrema(t))."
 	derived = DerivedParameters(measured)
 
 	function misfit(fun, t, val)
@@ -124,45 +125,46 @@ function fit(
 	# to be minimized to find model parameters
 	function objective(x, grad)
 		p̂ = ExpModelParameters(x, measured)
-		# @show p̂
+		@debug p̂
 		M = solve(MT(p̂, measured))
 		sol = M.ode_solution
 		# Impose a penalty for early termination.
 		if successful_retcode(sol.retcode)
 			Î = intensity(M)
+			@debug Î(0.1)
 			Q1 = misfit(Î, t, I)
 			T̂ₕ = solution(M, :Th, dim=false)
 			Q2 = misfit(T̂ₕ, t, Tₕ)
 			return Q1 + 5Q2
 		else
-			return 1/sol.t[end]
+			return 1 / sol.t[end]
 		end
 	end
 
-		# Set up optimization.
-		n = length(units(PT))
-		opt = Opt(method, n)
-		lower, upper = bounds(PT)
-		opt.lower_bounds = nondimensional(lower, measured)
-		opt.upper_bounds = nondimensional(upper, measured)
-		initpar = something(initpar, [lower + (m/4)*(upper - lower) for m in 1:3])
-		opt.xtol_rel = 1e-5
-		opt.xtol_abs = 1e-7
-		opt.maxeval = 1000
-		opt.min_objective = objective
-		# @show opt.upper_bounds
+	# Set up optimization.
+	n = length(units(PT))
+	opt = Opt(method, n)
+	lower, upper = bounds(PT)
+	opt.lower_bounds = nondimensional(lower, measured)
+	opt.upper_bounds = nondimensional(upper, measured)
+	initpar = something(initpar, [lower + (m/4)*(upper - lower) for m in 1:3])
+	opt.xtol_rel = 1e-3
+	opt.xtol_abs = 1e-5
+	opt.maxeval = 800
+	opt.min_objective = objective
+	# @show opt.upper_bounds
 
-		# Optimize over all initializations.
-		bestmin, bestpar = Inf, nondimensional(initpar[1], measured)
-		bestret = []
-		for p̂ in initpar
-			p = nondimensional(p̂, measured)
-			# @show objective(p, [])
-			minval, minp, ret = NLopt.optimize(opt, p)
-			@show minval, minp, ret
-			if minval < bestmin
-				bestmin, bestpar, bestret = minval, minp, ret
-			end
+	# Optimize over all initializations.
+	bestmin, bestpar = Inf, nondimensional(initpar[1], measured)
+	bestret = []
+	for p̂ in initpar
+		p = nondimensional(p̂, measured)
+		# @show objective(p, [])
+		minval, minp, ret = NLopt.optimize(opt, p)
+		@debug minval, minp, ret
+		if minval < bestmin
+			bestmin, bestpar, bestret = minval, minp, ret
+		end
 	end
 
 	if bestret == :FAILURE
