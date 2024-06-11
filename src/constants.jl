@@ -31,9 +31,9 @@ const fcr2 = ρ*fcr/Mw_FL
 	T₀::typeof(1.0u"°C")
 end
 
-function Base.show(io::IO, p::MeasuredValues)
-	print(io, "Trial measurements:    ", struct_string(p))
-end
+# function Base.show(io::IO, p::MeasuredValues)
+	# print(io, "Trial measurements:    ", struct_string(p))
+# end
 
 # these are needed to determine the behavior of a model
 @with_kw mutable struct TrialParameters
@@ -107,4 +107,11 @@ function DerivedParameters(p::MeasuredValues, trial::TrialParameters)
 	strain = t -> ustrip(ĝ(t) * ts)
 
 	return DerivedParameters(Pc, Pr, f₀, ϕ, ℒ, T̃inf, k̃, K̃, d̃, T̃₀, Bi, strain)
+end
+
+function initial_thickness(f̂₀, ΔI, Imax=226.22/255)
+	r = ΔI * (1 + (f̂₀ / fcr)^2) / Imax
+	# convert to Molar
+	f₀ʹ = f̂₀ * 0.53 / 0.2
+	return uconvert(u"μm", -log1p(-r) / (eps_f * f₀ʹ * u"M"))
 end

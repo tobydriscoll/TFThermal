@@ -15,7 +15,7 @@ using Peaks, Polynomials, HampelOutliers
 import Base: show
 # import Polynomials: fit
 import DifferentialEquations: solve
-export MeasuredValues, TrialParameters, DerivedParameters, ExpModelParameters, units, bounds, TFModelExp, solution, evap_rate, dimensional, nondimensional, solve, intensity
+export MeasuredValues, TrialParameters, DerivedParameters, ExpModelParameters, units, bounds, TFModelExp, solution, evap_rate, dimensional, nondimensional, solve, intensity, initial_thickness
 export fit, FittedModel
 
 export Chebyshev
