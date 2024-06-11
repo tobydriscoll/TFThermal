@@ -73,7 +73,7 @@ solution(M::AbstractModel; kw...) = [solution(M, comp; kw...) for comp in (:h, :
 function solution(M::AbstractModel, component::Symbol; dim=false)
 	if component == :Tc
 		return function(t, y)
-			Tc = M.ode_solution(t, idxs=:Tc)
+			Tc = getindex(M.ode_solution(t), :Tc)
 			T = Chebyshev.interp(Tc, 2*(ỹ_c - y) / ỹ_c - 1)
 			if dim
 				T = Ts + (Tb - Ts) * T
@@ -85,8 +85,8 @@ function solution(M::AbstractModel, component::Symbol; dim=false)
 	elseif component == :Th
 		@unpack Bi, ℒ, K̃, T̃inf = M.derived
 		return function(t)
-			h = M.ode_solution(t, idxs=:h)
-			T₀ = M.ode_solution(t, idxs=:Tc)[end]
+			h = getindex(M.ode_solution(t), :h)
+			T₀ =  getindex(M.ode_solution(t), :Tc)[end]
 			Th = ( T₀ + Bi * h * T̃inf ) / ( 1 + ( Bi + ℒ / K̃ ) * h )
 			if dim
 				Th = Ts + (Tb - Ts) * Th
@@ -107,7 +107,7 @@ function solution(M::AbstractModel, component::Symbol; dim=false)
 		else
 			factor = 1
 		end
-		return t -> factor * M.ode_solution(t, idxs=component)
+		return t -> factor * getindex(M.ode_solution(t), component)
 	end
 end
 solution(M::AbstractModel, t::Real, component::Symbol; kw...) = solution(M, component; kw...)(t)
